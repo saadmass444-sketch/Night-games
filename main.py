@@ -44,7 +44,7 @@ async def on_ready():
     await bot.change_presence(activity=discord.Game(name="الألعاب العربية | !العاب"))
 
 
-# 4. Games Help Menu (With Your Logo Fixed!)
+# 4. Games Help Menu (Using the Bot's Own Profile Picture)
 @bot.command(name="العاب")
 async def help_games(ctx):
     embed = discord.Embed(
@@ -52,9 +52,9 @@ async def help_games(ctx):
         color=discord.Color.from_rgb(243, 156, 18),
     )
 
-    # We use a direct URL of your moon logo so it renders correctly as a thumbnail
-    logo_url = "https://i.ibb.co/v4vYfWks/Night-logo-for-bots.jpg"
-    embed.set_thumbnail(url=logo_url)
+    # This pulls your moon logo directly from your bot's own profile avatar dynamically!
+    if bot.user and bot.user.display_avatar:
+        embed.set_thumbnail(url=bot.user.display_avatar.url)
 
     embed.add_field(
         name="الألعاب الجماعية ❯",
