@@ -44,7 +44,7 @@ async def on_ready():
     await bot.change_presence(activity=discord.Game(name="الألعاب العربية | !العاب"))
 
 
-# 4. Games Help Menu (Using the Bot's Own Profile Picture)
+# 4. Games Help Menu
 @bot.command(name="العاب")
 async def help_games(ctx):
     embed = discord.Embed(
@@ -52,7 +52,6 @@ async def help_games(ctx):
         color=discord.Color.from_rgb(243, 156, 18),
     )
 
-    # This pulls your moon logo directly from your bot's own profile avatar dynamically!
     if bot.user and bot.user.display_avatar:
         embed.set_thumbnail(url=bot.user.display_avatar.url)
 
@@ -72,17 +71,21 @@ async def help_games(ctx):
 
 # ----------------- [ GAMES SECTION ] -----------------
 
-# UPDATED GAME: تخمين الرقم السري مع 10 محاولات
+# GAME: تخمين الرقم السري
 @bot.command(name="تخمين")
 async def guessing_game(ctx):
     secret_number = random.randint(1, 100)
     max_attempts = 10
     attempts_left = max_attempts
 
-    await ctx.send(
-        f"🔢 | **بدأت لعبة التخمين! لقد اخترت رقماً من 1 إلى 100.**\n"
-        f"📬 | معاكم إجمالي **{max_attempts} محاولات** فقط لحزره! خمنوا الآن:"
+    embed = discord.Embed(
+        title="🔢 | بدأت لعبة تخمين الرقم السري!",
+        description=f"📬 | لقد اخترت رقماً من **1 إلى 100**.\nمعاكم إجمالي **{max_attempts} محاولات** فقط لحزره! خمنوا الآن بقناة الدردشة:",
+        color=discord.Color.from_rgb(44, 47, 51)
     )
+    # Using the exact banner image you provided
+    embed.set_image(url="https://images2.imgbox.com/39/12/fQy1Wz28_o.png")
+    await ctx.send(embed=embed)
 
     def check(m):
         return m.channel == ctx.channel and not m.author.bot and m.content.strip().isdigit()
@@ -146,7 +149,14 @@ async def flags_game(ctx):
     ]
 
     item = random.choice(flags_dict)
-    await ctx.send(f"🚩 | **أسرع واحد يعرّف اسم هذه الدولة:**\n# {item['flag']}")
+    
+    embed = discord.Embed(
+        title="🚩 | لعبة تخمين أعلام الدول العربية",
+        description=f"**أسرع واحد يعرّف اسم هذه الدولة واكتب الإجابة بالدردشة:**\n\n# {item['flag']}",
+        color=discord.Color.red()
+    )
+    embed.set_image(url="https://images2.imgbox.com/39/da/tFpT6Ior_o.png")
+    await ctx.send(embed=embed)
 
     def check(m):
         if m.channel != ctx.channel or m.author.bot:
@@ -173,7 +183,13 @@ async def math_game(ctx):
     op = random.choice(["+", "-"])
     correct = n1 + n2 if op == "+" else n1 - n2
 
-    await ctx.send(f"🔢 | **أسرع واحد يحسبها:**\n` {n1} {op} {n2} = ؟ `")
+    embed = discord.Embed(
+        title="🔢 | لعبة الحساب السريع",
+        description=f"**أسرع واحد يحسب المسألة الحسابية التالية:**\n\n# ` {n1} {op} {n2} = ؟ `",
+        color=discord.Color.blue()
+    )
+    embed.set_image(url="https://images2.imgbox.com/15/8e/m7qIepxR_o.png")
+    await ctx.send(embed=embed)
 
     def check(m):
         return m.channel == ctx.channel and not m.author.bot and m.content.strip() == str(correct)
@@ -201,7 +217,14 @@ async def capitals_game(ctx):
         "الأردن": "عمان",
     }
     country, capital = random.choice(list(capitals_dict.items()))
-    await ctx.send(f"🌍 | **ما هي عاصمة دولة:** __**{country}**__ ؟")
+
+    embed = discord.Embed(
+        title="🌍 | لعبة عواصم الدول",
+        description=f"**ما هي عاصمة دولة:** __**{country}**__ ؟",
+        color=discord.Color.green()
+    )
+    embed.set_image(url="https://images2.imgbox.com/4a/14/NInPizZ6_o.png")
+    await ctx.send(embed=embed)
 
     def check(m):
         user_ans = m.content.strip().replace("ة", "ه").replace("أ", "ا")
@@ -226,7 +249,14 @@ async def fekak_game(ctx):
         {"masked": "برمجةالبوتات", "clean": "برمجة البوتات"},
     ]
     chosen = random.choice(words_list)
-    await ctx.send(f"✏️ | **فكك الكلمة التالية وضبط المسافات:**\n`{chosen['masked']}`")
+
+    embed = discord.Embed(
+        title="✏️ | لعبة فكاك الجمل",
+        description=f"**فكك الكلمة التالية وضبط المسافات بشكل صحيح:**\n\n# `{chosen['masked']}`",
+        color=discord.Color.orange()
+    )
+    embed.set_image(url="https://images2.imgbox.com/f9/52/Ff06B9XF_o.png")
+    await ctx.send(embed=embed)
 
     def check(m):
         return m.channel == ctx.channel and not m.author.bot and m.content.strip() == chosen['clean']
