@@ -4,10 +4,6 @@ import random
 import asyncio
 import json
 import os
-import io
-import math
-import requests
-from PIL import Image, ImageDraw
 
 # 1. Initialize Bot & Intents
 intents = discord.Intents.default()
@@ -26,9 +22,11 @@ def load_data():
     except Exception:
         return {}
 
+
 def save_data(data):
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
+
 
 def add_points(user_id: str, amount: int):
     data = load_data()
@@ -67,54 +65,6 @@ async def help_games(ctx):
     await ctx.send(embed=embed)
 
 
-# ----------------- [ CRASH-PROOF WHEEL GENERATOR ] -----------------
-
-def generate_wheel_image(players, chosen_player):
-    """Generates a dynamic wheel image. Completely wrapped to catch exceptions."""
-    size = (600, 600)
-    img = Image.new("RGBA", size, (47, 49, 54, 255))
-    draw = ImageDraw.Draw(img)
-    
-    center_x, center_y = size[0] // 2, size[1] // 2
-    radius = 240
-    num_players = len(players)
-    slice_angle = 360 / num_players if num_players > 0 else 360
-    
-    colors = [(139, 131, 153, 255), (218, 212, 224, 255), (94, 84, 109, 255)]
-    
-    for i in range(num_players):
-        start_ang = i * slice_angle - 90
-        end_ang = (i + 1) * slice_angle - 90
-        fill_color = colors[i % len(colors)]
-        
-        draw.pieslice([center_x - radius, center_y - radius, center_x + radius, center_y + radius], 
-                      start=start_ang, end=end_ang, fill=fill_color, outline=(32, 34, 37, 255), width=4)
-
-    draw.ellipse([center_x - radius, center_y - radius, center_x + radius, center_y + radius], outline=(79, 70, 93, 255), width=8)
-    draw.polygon([(center_x - 15, center_y - radius - 5), (center_x + 15, center_y - radius - 5), (center_x, center_y - radius + 20)], fill=(255, 255, 255, 255))
-
-    try:
-        avatar_url = chosen_player.display_avatar.with_format("png").with_size(128).url
-        response = requests.get(avatar_url, timeout=3)
-        avatar_img = Image.open(io.BytesIO(response.content)).convert("RGBA")
-        avatar_img = avatar_img.resize((140, 140))
-        
-        mask = Image.new("L", (140, 140), 0)
-        mask_draw = ImageDraw.Draw(mask)
-        mask_draw.ellipse([0, 0, 140, 140], fill=255)
-        
-        img.paste(avatar_img, (center_x - 70, center_y - 70), mask)
-        draw.ellipse([center_x - 73, center_y - 73, center_x + 73, center_y + 73], outline=(60, 50, 75, 255), width=6)
-    except Exception as e:
-        print(f"[Image Warning] Skipping profile pic center: {e}")
-        draw.ellipse([center_x - 70, center_y - 70, center_x + 70, center_y + 70], fill=(100, 90, 115, 255), outline=(255, 255, 255, 255), width=4)
-
-    final_buffer = io.BytesIO()
-    img.save(final_buffer, format="PNG")
-    final_buffer.seek(0)
-    return final_buffer
-
-
 # ----------------- [ ROULETTE INTERFACES ] -----------------
 
 class RouletteLobbyView(discord.ui.View):
@@ -139,7 +89,7 @@ class RouletteLobbyView(discord.ui.View):
             return await interaction.response.send_message("❌ أنت مسجل بالفعل في هذه الجولة!", ephemeral=True)
         if len(self.players) >= 1000:
             return await interaction.response.send_message("❌ عذراً، اللوبي ممتلئ!", ephemeral=True)
-        
+
         self.players.append(interaction.user)
         await self.update_lobby_message(interaction)
 
@@ -147,7 +97,7 @@ class RouletteLobbyView(discord.ui.View):
     async def leave_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user not in self.players:
             return await interaction.response.send_message("❌ أنت لست مسجلاً أساساً!", ephemeral=True)
-        
+
         self.players.remove(interaction.user)
         await self.update_lobby_message(interaction)
 
@@ -162,7 +112,7 @@ class TurnActionView(discord.ui.View):
         super().__init__(timeout=15.0)
         self.current_player = current_player
         self.players_list = players_list
-        self.action_chosen = None  
+        self.action_chosen = None
         self.target_member = None
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -212,7 +162,7 @@ class TurnActionView(discord.ui.View):
 @bot.command(name="روليت")
 async def roulette_game(ctx):
     lobby = RouletteLobbyView(ctx, timeout_secs=35)
-    
+
     embed = discord.Embed(
         title="🎯 | نظام الروليت الملكي (Roulette)",
         description=f"**اللاعبين المسجلين:** `0/1000`\n⏳ المتبقي على البدء: **35 ثانية**",
@@ -254,39 +204,32 @@ async def roulette_game(ctx):
     while len(active_players) > 1:
         current_turn_player = random.choice(active_players)
         players_list_str = " | ".join([f"`{idx+1} - {p.display_name}`" for idx, p in enumerate(active_players)])
-        
+
         round_embed = discord.Embed(
             title=f"الجولة {round_counter} - الدور لـ {current_turn_player.display_name}",
             description=f"{current_turn_player.mention} ، **لديك 15 ثانية لاختيار شخص لطردة أو اللعب عشوائياً!**\n\n**اللاعبين المتواجدين بالعجلة:**\n{players_list_str}",
-            color=discord.Color.from_rgb(94, 84, 109)
+            color=discord.Color.from_rgb(106, 90, 205)
         )
-        
-        # Safe execution wrapper for image attachments to guarantee the bot never crashes
-        try:
-            wheel_buffer = generate_wheel_image(active_players, current_turn_player)
-            wheel_file = discord.File(fp=wheel_buffer, filename="wheel.png")
-            round_embed.set_image(url="attachment://wheel.png")
-            action_view = TurnActionView(current_turn_player, active_players)
-            round_msg = await ctx.send(file=wheel_file, embed=round_embed, view=action_view)
-        except Exception as crash_error:
-            print(f"[Engine Guard] Image engine failed, utilizing stable embed fallback: {crash_error}")
-            action_view = TurnActionView(current_turn_player, active_players)
-            round_msg = await ctx.send(embed=round_embed, view=action_view)
-        
+        round_embed.set_thumbnail(url=current_turn_player.display_avatar.url)
+        round_embed.set_image(url="https://images2.imgbox.com/39/5f/ZofkOnxJ_o.png")
+
+        action_view = TurnActionView(current_turn_player, active_players)
+        round_msg = await ctx.send(embed=round_embed, view=action_view)
+
         await action_view.wait()
-        
+
         if action_view.action_chosen is None:
             if current_turn_player in active_players:
                 active_players.remove(current_turn_player)
             await ctx.send(f"💀 تم طرد {current_turn_player.mention} بسبب عدم الاستجابة وانتهاء الـ 15 ثانية!")
             round_counter += 1
             continue
-            
+
         if action_view.action_chosen == "leave":
             if current_turn_player in active_players:
                 active_players.remove(current_turn_player)
             await ctx.send(f"🏳️ اختار اللاعب {current_turn_player.mention} **الانسحاب** وغادر الجولة تلقائياً.")
-            
+
         else:
             if action_view.action_chosen == "random":
                 opponents = [p for p in active_players if p != current_turn_player]
@@ -295,12 +238,11 @@ async def roulette_game(ctx):
             else:
                 victim = action_view.target_member if action_view.target_member in active_players else None
                 action_type_text = "باختيار مباشر"
-                
+
             if victim and victim in active_players:
                 active_players.remove(victim)
                 await ctx.send(f"🔴 تم طرد {victim.mention} **{action_type_text}**، سوف تبدأ الجولة التالية قريباً...")
             else:
-                # If target selection somehow became invalid, draw a random fallback target
                 opponents = [p for p in active_players if p != current_turn_player]
                 if opponents:
                     victim = random.choice(opponents)
@@ -313,7 +255,7 @@ async def roulette_game(ctx):
     if len(active_players) == 1:
         ultimate_winner = active_players[0]
         add_points(str(ultimate_winner.id), 50)
-        
+
         win_embed = discord.Embed(
             title="🏆 بطل الروليت الملكي!",
             description=f"كفووو! نجح {ultimate_winner.mention} بالصمود للنهاية وسحق بقية الخصوم!\nحصل على **50 نقطة مكافأة** 💰 وتم تسجيل فوز بملفه الشخصي.",
