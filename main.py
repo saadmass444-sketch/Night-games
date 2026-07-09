@@ -7,7 +7,7 @@ import os
 import io
 import math
 import requests
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw
 
 # 1. Initialize Bot & Intents
 intents = discord.Intents.default()
@@ -67,10 +67,10 @@ async def help_games(ctx):
     await ctx.send(embed=embed)
 
 
-# ----------------- [ DYNAMIC WHEEL GENERATOR ] -----------------
+# ----------------- [ FIXED CRASH-PROOF WHEEL GENERATOR ] -----------------
 
 def generate_wheel_image(players, chosen_player):
-    """Generates a dynamic prize wheel matching the style provided by the user."""
+    """Generates a dynamic prize wheel without using system font files to prevent Linux server crashes."""
     size = (600, 600)
     img = Image.new("RGBA", size, (47, 49, 54, 255)) # Discord Dark Theme background color
     draw = ImageDraw.Draw(img)
@@ -80,65 +80,48 @@ def generate_wheel_image(players, chosen_player):
     num_players = len(players)
     slice_angle = 360 / num_players if num_players > 0 else 360
     
-    # Palette themes matching premium bots
+    # Elegant color scheme matching your screenshot layout
     colors = [(139, 131, 153, 255), (218, 212, 224, 255), (94, 84, 109, 255)]
     
-    # Draw Slices
-    for i, player in enumerate(players):
+    # Draw Wheel Slices safely without writing text inside (Names are displayed perfectly via Embed fields instead)
+    for i in range(num_players):
         start_ang = i * slice_angle - 90
         end_ang = (i + 1) * slice_angle - 90
         fill_color = colors[i % len(colors)]
         
         draw.pieslice([center_x - radius, center_y - radius, center_x + radius, center_y + radius], 
                       start=start_ang, end=end_ang, fill=fill_color, outline=(32, 34, 37, 255), width=4)
-        
-        # Draw Name Text rotated inside the wheel segment
-        try:
-            font = ImageFont.load_default()
-        except:
-            font = ImageFont.load_default()
-            
-        mid_angle = math.radians(start_ang + slice_angle / 2)
-        text_dist = radius * 0.6
-        tx = center_x + math.cos(mid_angle) * text_dist
-        ty = center_y + math.sin(mid_angle) * text_dist
-        
-        name_str = player.display_name[:10]
-        draw.text((tx, ty), name_str, fill=(40, 40, 40, 255), font=font, anchor="mm")
 
-    # Draw Outer Border Indicator Ring
+    # Draw Outer Border Ring Decoration
     draw.ellipse([center_x - radius, center_y - radius, center_x + radius, center_y + radius], outline=(79, 70, 93, 255), width=8)
     
-    # Draw Top Pointer Arrow Indicator
+    # Draw Top Pointer Triangle Arrow
     draw.polygon([(center_x - 15, center_y - radius - 5), (center_x + 15, center_y - radius - 5), (center_x, center_y - radius + 20)], fill=(255, 255, 255, 255))
 
-    # Fetch and render current player's circular profile picture inside the center core
+    # Fetch and overlay player profile picture inside core ring safely
     try:
         avatar_url = chosen_player.display_avatar.with_size(128).url
         response = requests.get(avatar_url, timeout=5)
         avatar_img = Image.open(io.BytesIO(response.content)).convert("RGBA")
         avatar_img = avatar_img.resize((140, 140))
         
-        # Create circular mask for avatar
+        # Build mask cutout
         mask = Image.new("L", (140, 140), 0)
         mask_draw = ImageDraw.Draw(mask)
         mask_draw.ellipse([0, 0, 140, 140], fill=255)
         
-        # Paste inside center ring
         img.paste(avatar_img, (center_x - 70, center_y - 70), mask)
         draw.ellipse([center_x - 73, center_y - 73, center_x + 73, center_y + 73], outline=(60, 50, 75, 255), width=6)
     except Exception:
-        # Fallback circle if avatar download fails
         draw.ellipse([center_x - 70, center_y - 70, center_x + 70, center_y + 70], fill=(100, 90, 115, 255), outline=(255, 255, 255, 255), width=4)
 
-    # Save to binary output stream container
     final_buffer = io.BytesIO()
     img.save(final_buffer, format="PNG")
     final_buffer.seek(0)
     return final_buffer
 
 
-# ----------------- [ ROULETTE LOBBY INTERFACES ] -----------------
+# ----------------- [ ROULETTE INTERFACES ] -----------------
 
 class RouletteLobbyView(discord.ui.View):
     def __init__(self, ctx, timeout_secs=35):
@@ -182,7 +165,7 @@ class RouletteLobbyView(discord.ui.View):
 
 class TurnActionView(discord.ui.View):
     def __init__(self, current_player, players_list):
-        super().__init__(timeout=15.0) # Matches the 15 seconds rule from your screenshot!
+        super().__init__(timeout=15.0)
         self.current_player = current_player
         self.players_list = players_list
         self.action_chosen = None  
@@ -277,11 +260,10 @@ async def roulette_game(ctx):
     while len(active_players) > 1:
         current_turn_player = random.choice(active_players)
         
-        # Dynamic Wheel Render Section
+        # Generate the safe wheel graphic
         wheel_buffer = generate_wheel_image(active_players, current_turn_player)
         wheel_file = discord.File(fp=wheel_buffer, filename="wheel.png")
         
-        # Build layout matching the reference screenshot exactly
         players_list_str = " | ".join([f"`{idx+1} - {p.display_name}`" for idx, p in enumerate(active_players)])
         
         round_embed = discord.Embed(
@@ -296,14 +278,12 @@ async def roulette_game(ctx):
         
         await action_view.wait()
         
-        # Timeout Rule Handling
         if action_view.action_chosen is None:
             active_players.remove(current_turn_player)
             await ctx.send(f"💀 تم طرد {current_turn_player.mention} بسبب عدم الاستجابة وانتهاء الـ 15 ثانية!")
             round_counter += 1
             continue
             
-        # Action Resolution Branches
         if action_view.action_chosen == "leave":
             active_players.remove(current_turn_player)
             await ctx.send(f"🏳️ اختار اللاعب {current_turn_player.mention} **الانسحاب** وغادر الجولة تلقائياً.")
@@ -317,7 +297,6 @@ async def roulette_game(ctx):
                 victim = action_view.target_member
                 action_type_text = "باختيار مباشر"
                 
-            # Perform elimination
             active_players.remove(victim)
             await ctx.send(f"🔴 تم طرد {victim.mention} **{action_type_text}**، سوف تبدأ الجولة التالية قريباً...")
             
@@ -336,7 +315,6 @@ async def roulette_game(ctx):
 
 
 # ----------------- [ PRE-EXISTING TRIVIA MINI GAMES ] -----------------
-# (Keeping standard commands like أعلام, حساب, تخمين unchanged below...)
 
 @bot.command(name="اعلام")
 async def flags_game(ctx):
