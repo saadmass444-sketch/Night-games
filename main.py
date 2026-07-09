@@ -45,7 +45,7 @@ async def on_ready():
 
 
 # 4. Games Help Menu (Command updated to !العاب)
-@bot.command(name="العاب", aliases=["help_games", "help"])
+@bot.command(name="العاب", aliases=["help_games"])
 async def help_games(ctx):
     embed = discord.Embed(
         title="⭐ - Games Commands",
