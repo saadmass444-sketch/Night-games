@@ -52,7 +52,13 @@ async def help_games(ctx):
         color=discord.Color.from_rgb(243, 156, 18),
     )
 
-    embed.set_thumbnail(url="https://www.python.org/static/community_logos/python-logo-master-v3-TM.png")
+    logo_filename = "night_logo.png"
+    if os.path.exists(logo_filename):
+        embed.set_thumbnail(url=f"attachment://{logo_filename}")
+        await ctx.send(file=discord.File(logo_filename), embed=embed)
+        return
+
+    embed.set_thumbnail(url="https://cdn.discordapp.com/embed/avatars/0.png")
 
     embed.add_field(
         name="الألعاب الجماعية ❯",
