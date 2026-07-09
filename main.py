@@ -44,13 +44,15 @@ async def on_ready():
     await bot.change_presence(activity=discord.Game(name="الألعاب العربية | !العاب"))
 
 
-# 4. Games Help Menu (Command updated to !العاب)
-@bot.command(name="العاب", aliases=["help_games"])
+# 4. Games Help Menu (With Added Night Logo Thumbnail)
+@bot.command(name="العاب")
 async def help_games(ctx):
     embed = discord.Embed(
         title="⭐ - Games Commands",
         color=discord.Color.from_rgb(243, 156, 18),
     )
+
+    embed.set_thumbnail(url="https://images.prodia.technology/uploads/8e93ba9b-e8da-4fcb-beee-ee3600f68285.png")
 
     embed.add_field(
         name="الألعاب الجماعية ❯",
@@ -293,14 +295,11 @@ async def leaderboard(ctx):
 
 
 # ----------------- [ RUNTIME CONFIG ] -----------------
-if __name__ == "__main__":
-    TOKEN = os.getenv("DISCORD_TOKEN")
-    if not TOKEN:
-        raise RuntimeError("Set the DISCORD_TOKEN environment variable before starting the bot.")
+TOKEN = os.getenv("DISCORD_TOKEN") or 'YOUR_FALLBACK_TOKEN'
 
-    print("Starting Night Games bot...")
-    try:
-        bot.run(TOKEN)
-    except Exception as e:
-        print(f"Bot failed to start: {e}")
-        raise
+print("Starting Night Games bot...")
+try:
+    bot.run(TOKEN)
+except Exception as e:
+    print(f"Bot failed to start: {e}")
+    raise
