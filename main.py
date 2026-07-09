@@ -67,12 +67,12 @@ async def help_games(ctx):
     await ctx.send(embed=embed)
 
 
-# ----------------- [ FIXED CRASH-PROOF WHEEL GENERATOR ] -----------------
+# ----------------- [ CRASH-PROOF WHEEL GENERATOR ] -----------------
 
 def generate_wheel_image(players, chosen_player):
-    """Generates a dynamic prize wheel without using system font files to prevent Linux server crashes."""
+    """Generates a dynamic wheel image. Completely wrapped to catch exceptions."""
     size = (600, 600)
-    img = Image.new("RGBA", size, (47, 49, 54, 255)) # Discord Dark Theme background color
+    img = Image.new("RGBA", size, (47, 49, 54, 255))
     draw = ImageDraw.Draw(img)
     
     center_x, center_y = size[0] // 2, size[1] // 2
@@ -80,10 +80,8 @@ def generate_wheel_image(players, chosen_player):
     num_players = len(players)
     slice_angle = 360 / num_players if num_players > 0 else 360
     
-    # Elegant color scheme matching your screenshot layout
     colors = [(139, 131, 153, 255), (218, 212, 224, 255), (94, 84, 109, 255)]
     
-    # Draw Wheel Slices safely without writing text inside (Names are displayed perfectly via Embed fields instead)
     for i in range(num_players):
         start_ang = i * slice_angle - 90
         end_ang = (i + 1) * slice_angle - 90
@@ -92,27 +90,23 @@ def generate_wheel_image(players, chosen_player):
         draw.pieslice([center_x - radius, center_y - radius, center_x + radius, center_y + radius], 
                       start=start_ang, end=end_ang, fill=fill_color, outline=(32, 34, 37, 255), width=4)
 
-    # Draw Outer Border Ring Decoration
     draw.ellipse([center_x - radius, center_y - radius, center_x + radius, center_y + radius], outline=(79, 70, 93, 255), width=8)
-    
-    # Draw Top Pointer Triangle Arrow
     draw.polygon([(center_x - 15, center_y - radius - 5), (center_x + 15, center_y - radius - 5), (center_x, center_y - radius + 20)], fill=(255, 255, 255, 255))
 
-    # Fetch and overlay player profile picture inside core ring safely
     try:
-        avatar_url = chosen_player.display_avatar.with_size(128).url
-        response = requests.get(avatar_url, timeout=5)
+        avatar_url = chosen_player.display_avatar.with_format("png").with_size(128).url
+        response = requests.get(avatar_url, timeout=3)
         avatar_img = Image.open(io.BytesIO(response.content)).convert("RGBA")
         avatar_img = avatar_img.resize((140, 140))
         
-        # Build mask cutout
         mask = Image.new("L", (140, 140), 0)
         mask_draw = ImageDraw.Draw(mask)
         mask_draw.ellipse([0, 0, 140, 140], fill=255)
         
         img.paste(avatar_img, (center_x - 70, center_y - 70), mask)
         draw.ellipse([center_x - 73, center_y - 73, center_x + 73, center_y + 73], outline=(60, 50, 75, 255), width=6)
-    except Exception:
+    except Exception as e:
+        print(f"[Image Warning] Skipping profile pic center: {e}")
         draw.ellipse([center_x - 70, center_y - 70, center_x + 70, center_y + 70], fill=(100, 90, 115, 255), outline=(255, 255, 255, 255), width=4)
 
     final_buffer = io.BytesIO()
@@ -250,7 +244,7 @@ async def roulette_game(ctx):
     except Exception:
         pass
 
-    active_players = lobby.players
+    active_players = lobby.players.copy()
 
     if len(active_players) < 2:
         return await ctx.send("❌ تم إلغاء الجولة لعدم توفر لاعبين كافيين (اقل شي لاعبين اثنين)!")
@@ -259,11 +253,6 @@ async def roulette_game(ctx):
 
     while len(active_players) > 1:
         current_turn_player = random.choice(active_players)
-        
-        # Generate the safe wheel graphic
-        wheel_buffer = generate_wheel_image(active_players, current_turn_player)
-        wheel_file = discord.File(fp=wheel_buffer, filename="wheel.png")
-        
         players_list_str = " | ".join([f"`{idx+1} - {p.display_name}`" for idx, p in enumerate(active_players)])
         
         round_embed = discord.Embed(
@@ -271,21 +260,31 @@ async def roulette_game(ctx):
             description=f"{current_turn_player.mention} ، **لديك 15 ثانية لاختيار شخص لطردة أو اللعب عشوائياً!**\n\n**اللاعبين المتواجدين بالعجلة:**\n{players_list_str}",
             color=discord.Color.from_rgb(94, 84, 109)
         )
-        round_embed.set_image(url="attachment://wheel.png")
         
-        action_view = TurnActionView(current_turn_player, active_players)
-        round_msg = await ctx.send(file=wheel_file, embed=round_embed, view=action_view)
+        # Safe execution wrapper for image attachments to guarantee the bot never crashes
+        try:
+            wheel_buffer = generate_wheel_image(active_players, current_turn_player)
+            wheel_file = discord.File(fp=wheel_buffer, filename="wheel.png")
+            round_embed.set_image(url="attachment://wheel.png")
+            action_view = TurnActionView(current_turn_player, active_players)
+            round_msg = await ctx.send(file=wheel_file, embed=round_embed, view=action_view)
+        except Exception as crash_error:
+            print(f"[Engine Guard] Image engine failed, utilizing stable embed fallback: {crash_error}")
+            action_view = TurnActionView(current_turn_player, active_players)
+            round_msg = await ctx.send(embed=round_embed, view=action_view)
         
         await action_view.wait()
         
         if action_view.action_chosen is None:
-            active_players.remove(current_turn_player)
+            if current_turn_player in active_players:
+                active_players.remove(current_turn_player)
             await ctx.send(f"💀 تم طرد {current_turn_player.mention} بسبب عدم الاستجابة وانتهاء الـ 15 ثانية!")
             round_counter += 1
             continue
             
         if action_view.action_chosen == "leave":
-            active_players.remove(current_turn_player)
+            if current_turn_player in active_players:
+                active_players.remove(current_turn_player)
             await ctx.send(f"🏳️ اختار اللاعب {current_turn_player.mention} **الانسحاب** وغادر الجولة تلقائياً.")
             
         else:
@@ -294,24 +293,33 @@ async def roulette_game(ctx):
                 victim = random.choice(opponents) if opponents else current_turn_player
                 action_type_text = "بشكل عشوائي"
             else:
-                victim = action_view.target_member
+                victim = action_view.target_member if action_view.target_member in active_players else None
                 action_type_text = "باختيار مباشر"
                 
-            active_players.remove(victim)
-            await ctx.send(f"🔴 تم طرد {victim.mention} **{action_type_text}**، سوف تبدأ الجولة التالية قريباً...")
-            
+            if victim and victim in active_players:
+                active_players.remove(victim)
+                await ctx.send(f"🔴 تم طرد {victim.mention} **{action_type_text}**، سوف تبدأ الجولة التالية قريباً...")
+            else:
+                # If target selection somehow became invalid, draw a random fallback target
+                opponents = [p for p in active_players if p != current_turn_player]
+                if opponents:
+                    victim = random.choice(opponents)
+                    active_players.remove(victim)
+                    await ctx.send(f"🔴 تم طرد {victim.mention} **بشكل عشوائي**، سوف تبدأ الجولة التالية قريباً...")
+
         round_counter += 1
         await asyncio.sleep(4)
 
-    ultimate_winner = active_players[0]
-    add_points(str(ultimate_winner.id), 50)
-    
-    win_embed = discord.Embed(
-        title="🏆 بطل الروليت الملكي!",
-        description=f"كفووو! نجح {ultimate_winner.mention} بالصمود للنهاية وسحق بقية الخصوم!\nحصل على **50 نقطة مكافأة** 💰 وتم تسجيل فوز بملفه الشخصي.",
-        color=discord.Color.gold()
-    )
-    await ctx.send(embed=win_embed)
+    if len(active_players) == 1:
+        ultimate_winner = active_players[0]
+        add_points(str(ultimate_winner.id), 50)
+        
+        win_embed = discord.Embed(
+            title="🏆 بطل الروليت الملكي!",
+            description=f"كفووو! نجح {ultimate_winner.mention} بالصمود للنهاية وسحق بقية الخصوم!\nحصل على **50 نقطة مكافأة** 💰 وتم تسجيل فوز بملفه الشخصي.",
+            color=discord.Color.gold()
+        )
+        await ctx.send(embed=win_embed)
 
 
 # ----------------- [ PRE-EXISTING TRIVIA MINI GAMES ] -----------------
