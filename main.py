@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from typing import Any, Dict, List, Optional, Sequence, Union
 import random
 import asyncio
 import json
@@ -11,9 +12,11 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True)
 
 DB_FILE = os.path.join(os.path.dirname(__file__), "database.json")
+BotContext = commands.Context[commands.Bot]
+UserOrMember = Union[discord.Member, discord.User]
 
 # 2. Database Helper Functions
-def load_data():
+def load_data() -> Dict[str, Any]:
     if not os.path.exists(DB_FILE):
         return {}
     try:
@@ -23,12 +26,12 @@ def load_data():
         return {}
 
 
-def save_data(data):
+def save_data(data: Dict[str, Any]) -> None:
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 
-def add_points(user_id: str, amount: int):
+def add_points(user_id: str, amount: int) -> None:
     data = load_data()
     if user_id not in data:
         data[user_id] = {"points": 0, "wins": 0}
@@ -38,19 +41,23 @@ def add_points(user_id: str, amount: int):
 
 # 3. Bot Ready Event
 @bot.event
-async def on_ready():
-    print(f"🤖 البوت جاهز للعمل باسم: {bot.user.name}")
+async def on_ready() -> None:
+    bot_user = bot.user
+    if bot_user is None:
+        return
+    print(f"🤖 البوت جاهز للعمل باسم: {bot_user.name}")
     await bot.change_presence(activity=discord.Game(name="الألعاب العربية | !العاب"))
 
 # 4. Games Help Menu
 @bot.command(name="العاب")
-async def help_games(ctx):
+async def help_games(ctx: BotContext) -> None:
     embed = discord.Embed(
         title="⭐ - Games Commands",
         color=discord.Color.from_rgb(243, 156, 18),
     )
-    if bot.user and bot.user.display_avatar:
-        embed.set_thumbnail(url=bot.user.display_avatar.url)
+    bot_user = bot.user
+    if bot_user is not None:
+        embed.set_thumbnail(url=bot_user.display_avatar.url)
 
     embed.add_field(
         name="الألعاب الجماعية ❯",
@@ -68,11 +75,11 @@ async def help_games(ctx):
 # ----------------- [ ROULETTE INTERFACES ] -----------------
 
 class RouletteLobbyView(discord.ui.View):
-    def __init__(self, ctx, timeout_secs=35):
+    def __init__(self, ctx: BotContext, timeout_secs: int = 35) -> None:
         super().__init__(timeout=timeout_secs + 5)
-        self.ctx = ctx
-        self.players = []
-        self.timeout_secs = timeout_secs
+        self.ctx: BotContext = ctx
+        self.players: List[UserOrMember] = []
+        self.timeout_secs: int = timeout_secs
 
     async def update_lobby_message(self, interaction: discord.Interaction):
         embed = discord.Embed(
@@ -84,36 +91,39 @@ class RouletteLobbyView(discord.ui.View):
         await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="دخول", style=discord.ButtonStyle.green, custom_id="join_btn", emoji="👥")
-    async def join_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def join_callback(self, interaction: discord.Interaction, button: discord.ui.Button[discord.ui.View]) -> None:
         if interaction.user in self.players:
-            return await interaction.response.send_message("❌ أنت مسجل بالفعل في هذه الجولة!", ephemeral=True)
+            await interaction.response.send_message("❌ أنت مسجل بالفعل في هذه الجولة!", ephemeral=True)
+            return
         if len(self.players) >= 1000:
-            return await interaction.response.send_message("❌ عذراً، اللوبي ممتلئ!", ephemeral=True)
+            await interaction.response.send_message("❌ عذراً، اللوبي ممتلئ!", ephemeral=True)
+            return
 
         self.players.append(interaction.user)
         await self.update_lobby_message(interaction)
 
     @discord.ui.button(label="خروج", style=discord.ButtonStyle.red, custom_id="leave_btn", emoji="🚪")
-    async def leave_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def leave_callback(self, interaction: discord.Interaction, button: discord.ui.Button[discord.ui.View]) -> None:
         if interaction.user not in self.players:
-            return await interaction.response.send_message("❌ أنت لست مسجلاً أساساً!", ephemeral=True)
+            await interaction.response.send_message("❌ أنت لست مسجلاً أساساً!", ephemeral=True)
+            return
 
         self.players.remove(interaction.user)
         await self.update_lobby_message(interaction)
 
     @discord.ui.button(label="المتجر", style=discord.ButtonStyle.blurple, custom_id="shop_btn", emoji="🏪")
-    async def shop_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def shop_callback(self, interaction: discord.Interaction, button: discord.ui.Button[discord.ui.View]) -> None:
         embed = discord.Embed(title="🏪 متجر الروليت", description="قريباً سيتم إضافة أسلحة ودروع المتجر هنا!", color=discord.Color.gold())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class TurnActionView(discord.ui.View):
-    def __init__(self, current_player, players_list):
+    def __init__(self, current_player: UserOrMember, players_list: Sequence[UserOrMember]) -> None:
         super().__init__(timeout=15.0)
-        self.current_player = current_player
-        self.players_list = players_list
-        self.action_chosen = None
-        self.target_member = None
+        self.current_player: UserOrMember = current_player
+        self.players_list: Sequence[UserOrMember] = players_list
+        self.action_chosen: Optional[str] = None
+        self.target_member: Optional[UserOrMember] = None
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user != self.current_player:
@@ -122,19 +132,19 @@ class TurnActionView(discord.ui.View):
         return True
 
     @discord.ui.button(label="عشوائي", style=discord.ButtonStyle.success, emoji="🎲")
-    async def random_target(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def random_target(self, interaction: discord.Interaction, button: discord.ui.Button[discord.ui.View]) -> None:
         self.action_chosen = "random"
         await interaction.response.defer()
         self.stop()
 
     @discord.ui.button(label="انسحاب", style=discord.ButtonStyle.danger, emoji="🏳️")
-    async def surrender(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def surrender(self, interaction: discord.Interaction, button: discord.ui.Button[discord.ui.View]) -> None:
         self.action_chosen = "leave"
         await interaction.response.defer()
         self.stop()
 
     @discord.ui.button(label="اختار لاعب", style=discord.ButtonStyle.secondary, emoji="🎯")
-    async def pick_target(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def pick_target(self, interaction: discord.Interaction, button: discord.ui.Button[discord.ui.View]) -> None:
         opponents = [p for p in self.players_list if p != self.current_player]
         if not opponents:
             self.action_chosen = "random"
@@ -143,13 +153,13 @@ class TurnActionView(discord.ui.View):
 
         select_view = discord.ui.View(timeout=15)
         options = [discord.SelectOption(label=opp.display_name, value=str(opp.id)) for opp in opponents[:25]]
-        dropdown = discord.ui.Select(placeholder="اختر الشخص الذي تريد طرده وتصويب الروليت عليه...", options=options)
+        dropdown: discord.ui.Select[discord.ui.View] = discord.ui.Select(placeholder="اختر الشخص الذي تريد طرده وتصويب الروليت عليه...", options=options)
 
-        async def dropdown_callback(inter: discord.Interaction):
+        async def dropdown_callback(interaction: discord.Interaction) -> None:
             selected_id = int(dropdown.values[0])
             self.target_member = discord.utils.get(self.players_list, id=selected_id)
             self.action_chosen = "target"
-            await inter.response.defer()
+            await interaction.response.defer()
             self.stop()
 
         dropdown.callback = dropdown_callback
@@ -160,7 +170,7 @@ class TurnActionView(discord.ui.View):
 # ----------------- [ ROULETTE COMMAND CORE ] -----------------
 
 @bot.command(name="روليت")
-async def roulette_game(ctx):
+async def roulette_game(ctx: BotContext) -> None:
     lobby = RouletteLobbyView(ctx, timeout_secs=35)
 
     embed = discord.Embed(
@@ -188,7 +198,8 @@ async def roulette_game(ctx):
             break
 
     for child in lobby.children:
-        child.disabled = True
+        if isinstance(child, discord.ui.Button):
+            child.disabled = True
     try:
         await lobby_msg.edit(view=lobby)
     except Exception:
@@ -197,7 +208,8 @@ async def roulette_game(ctx):
     active_players = lobby.players.copy()
 
     if len(active_players) < 2:
-        return await ctx.send("❌ تم إلغاء الجولة لعدم توفر لاعبين كافيين (اقل شي لاعبين اثنين)!")
+        await ctx.send("❌ تم إلغاء الجولة لعدم توفر لاعبين كافيين (اقل شي لاعبين اثنين)!")
+        return
 
     round_counter = 1
 
@@ -214,7 +226,7 @@ async def roulette_game(ctx):
         round_embed.set_image(url="https://images2.imgbox.com/39/5f/ZofkOnxJ_o.png")
 
         action_view = TurnActionView(current_turn_player, active_players)
-        round_msg = await ctx.send(embed=round_embed, view=action_view)
+        await ctx.send(embed=round_embed, view=action_view)
 
         await action_view.wait()
 
@@ -267,8 +279,8 @@ async def roulette_game(ctx):
 # ----------------- [ PRE-EXISTING TRIVIA MINI GAMES ] -----------------
 
 @bot.command(name="اعلام")
-async def flags_game(ctx):
-    flags_dict = [
+async def flags_game(ctx: BotContext) -> None:
+    flags_dict: List[Dict[str, Any]] = [
         {"flag": "🇸🇦", "answers": ["السعودية"]},
         {"flag": "🇪🇬", "answers": ["مصر"]}
     ]
@@ -278,54 +290,54 @@ async def flags_game(ctx):
     await ctx.send(embed=embed)
 
 @bot.command(name="حساب")
-async def math_game(ctx):
+async def math_game(ctx: BotContext) -> None:
     n1, n2 = random.randint(5, 50), random.randint(5, 50)
     embed = discord.Embed(title="🔢 الحساب السريع", description=f"# `{n1} + {n2} = ؟`", color=discord.Color.blue())
     embed.set_image(url="https://images2.imgbox.com/15/8e/m7qIepxR_o.png")
     await ctx.send(embed=embed)
 
 @bot.command(name="تخمين")
-async def guessing_game(ctx):
+async def guessing_game(ctx: BotContext) -> None:
     embed = discord.Embed(title="🔢 تخمين الرقم", description="اخترت رقم من 1 لـ 100 خمنه!", color=discord.Color.dark_grey())
     embed.set_image(url="https://images2.imgbox.com/39/12/fQy1Wz28_o.png")
     await ctx.send(embed=embed)
 
 @bot.command(name="عواصم")
-async def capitals_game(ctx):
+async def capitals_game(ctx: BotContext) -> None:
     embed = discord.Embed(title="🌍 عواصم الدول", description="ما هي عاصمة السعودية؟", color=discord.Color.green())
     embed.set_image(url="https://images2.imgbox.com/4a/14/NInPizZ6_o.png")
     await ctx.send(embed=embed)
 
 @bot.command(name="فكاك")
-async def fekak_game(ctx):
+async def fekak_game(ctx: BotContext) -> None:
     embed = discord.Embed(title="✏️ فكاك الجمل", description="`سيرفرالعاب`", color=discord.Color.orange())
     embed.set_image(url="https://images2.imgbox.com/f9/52/Ff06B9XF_o.png")
     await ctx.send(embed=embed)
 
 @bot.command(name="كت")
-async def cut_tweet(ctx):
+async def cut_tweet(ctx: BotContext) -> None:
     questions = ["لو رجع بيك الزمن قبل 5 سنوات، ايش الشي الوحيد الي بتغيره؟"]
     await ctx.send(embed=discord.Embed(title="❓ كت تويت", description=random.choice(questions), color=discord.Color.purple()))
 
 @bot.command(name="نقاط")
-async def check_points(ctx, member: discord.Member = None):
-    member = member or ctx.author
+async def check_points(ctx: BotContext, member: Optional[discord.Member] = None) -> None:
+    target_member: UserOrMember = member or ctx.author
     data = load_data()
-    user_stats = data.get(str(member.id), {"points": 0, "wins": 0})
-    await ctx.send(f"💰 رصيد {member.mention}: **{user_stats['points']}** نقطة.")
+    user_stats = data.get(str(target_member.id), {"points": 0, "wins": 0})
+    await ctx.send(f"💰 رصيد {target_member.mention}: **{user_stats['points']}** نقطة.")
 
 @bot.command(name="بروفايل")
-async def profile(ctx, member: discord.Member = None):
-    member = member or ctx.author
+async def profile(ctx: BotContext, member: Optional[discord.Member] = None) -> None:
+    target_member: UserOrMember = member or ctx.author
     data = load_data()
-    user_stats = data.get(str(member.id), {"points": 0, "wins": 0})
-    embed = discord.Embed(title=f"👤 ملف اللاعب: {member.display_name}", color=discord.Color.blue())
-    embed.set_thumbnail(url=member.display_avatar.url)
+    user_stats = data.get(str(target_member.id), {"points": 0, "wins": 0})
+    embed = discord.Embed(title=f"👤 ملف اللاعب: {target_member.display_name}", color=discord.Color.blue())
+    embed.set_thumbnail(url=target_member.display_avatar.url)
     embed.add_field(name="💰 النقاط:", value=f"`{user_stats['points']}`", inline=True)
     await ctx.send(embed=embed)
 
 @bot.command(name="توب")
-async def leaderboard(ctx):
+async def leaderboard(ctx: BotContext) -> None:
     await ctx.send("🏆 قائمة المتصدرين تعمل بشكل ممتاز!")
 
 TOKEN = os.getenv("DISCORD_TOKEN") or 'YOUR_FALLBACK_TOKEN'
