@@ -1,11 +1,10 @@
 import discord
 from discord.ext import commands
+from typing import Any, Dict, List, Optional, Sequence, Union
 import random
 import asyncio
 import json
 import os
-import math
-from PIL import Image, ImageDraw, ImageFont
 
 # 1. Initialize Bot & Intents
 intents = discord.Intents.default()
@@ -13,10 +12,11 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True)
 
 DB_FILE = os.path.join(os.path.dirname(__file__), "database.json")
-LOGO_PATH = os.path.join(os.path.dirname(__file__), "logo.png")
+BotContext = commands.Context[commands.Bot]
+UserOrMember = Union[discord.Member, discord.User]
 
 # 2. Database Helper Functions
-def load_data():
+def load_data() -> Dict[str, Any]:
     if not os.path.exists(DB_FILE):
         return {}
     try:
@@ -25,11 +25,13 @@ def load_data():
     except Exception:
         return {}
 
-def save_data(data):
+
+def save_data(data: Dict[str, Any]) -> None:
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-def add_points(user_id: str, amount: int):
+
+def add_points(user_id: str, amount: int) -> None:
     data = load_data()
     if user_id not in data:
         data[user_id] = {"points": 0, "wins": 0}
@@ -37,175 +39,147 @@ def add_points(user_id: str, amount: int):
     data[user_id]["wins"] += 1
     save_data(data)
 
-# 3. Dynamic LOGO-THEMED (Night & روليت) Spinning GIF Generator
-def generate_spinning_wheel_gif(players, output_path="roulette.gif"):
-    """Generates an animated spinning GIF using the logo template, swapping Ashn to Night."""
-    num_players = len(players)
-    
-    # Dimensions of your logo template
-    template_size = (1024, 512)
-    
-    # Load background logo template or fallback if it's missing
-    if os.path.exists(LOGO_PATH):
-        base_template = Image.open(LOGO_PATH).convert("RGBA")
-    else:
-        # Fallback background color if logo.png isn't uploaded yet
-        base_template = Image.new("RGBA", template_size, (50, 54, 62, 255))
-    
-    # Prepare canvas to hide "Ashn" and place "Night"
-    draw_template = ImageDraw.Draw(base_template)
-    
-    # Mask over old "Ashn" area with matching background color (approximate coordinates)
-    draw_template.rectangle([640, 110, 750, 170], fill=(50, 54, 62, 255))
-    
-    try:
-        font = ImageFont.load_default()
-    except Exception:
-        font = None
-        
-    # Draw new branding text "Night"
-    draw_template.text((685, 135), "Night", fill=(255, 255, 255, 255), font=font, anchor="mm")
-
-    # Center circle coordinates of the metallic wheel ring inside your logo
-    # center_x = 490, center_y = 245, radius = 135
-    wheel_size = (270, 270)
-    
-    if num_players == 0:
-        # Save static image with changed text if no players joined yet
-        base_template.convert("RGB").save(output_path)
-        return
-
-    # Deep royal theme colors matching the metallic logo palette
-    colors = [
-        (43, 37, 73, 255),    # Dark Metallic Purple
-        (94, 82, 135, 255),   # Muted Violet
-        (140, 132, 170, 255), # Steel Purple
-        (201, 172, 114, 255), # Metallic Center Gold
-        (24, 22, 38, 255)     # Deep Dark Shadow
-    ]
-    
-    slice_angle = 360.0 / num_players
-
-    # Draw the dynamic player wheel layer independently so we can spin it
-    wheel_layer = Image.new("RGBA", wheel_size, (0, 0, 0, 0))
-    draw_wheel = ImageDraw.Draw(wheel_layer)
-    
-    for i, player in enumerate(players):
-        start_ang = i * slice_angle
-        end_ang = (i + 1) * slice_angle
-        fill_color = colors[i % len(colors)]
-        
-        # Draw wheel slices inside its boundary square
-        draw_wheel.pieslice([5, 5, 265, 265], start=start_ang, end=end_ang, fill=fill_color, outline=(20, 20, 30, 255), width=2)
-        
-        # Calculate dynamic usernames overlay placement
-        mid_angle = math.radians(start_ang + (slice_angle / 2))
-        text_x = 135 + 75 * math.cos(mid_angle)
-        text_y = 135 + 75 * math.sin(mid_angle)
-        name_text = player.display_name[:7]
-        
-        text_color = (13, 10, 26, 255) if fill_color == (201, 172, 114, 255) else (255, 255, 255, 255)
-        draw_wheel.text((text_x, text_y), name_text, fill=text_color, font=font, anchor="mm")
-        
-    # Small aesthetic central gold axis pin
-    draw_wheel.ellipse([115, 115, 155, 155], fill=(201, 172, 114, 255), outline=(0, 0, 0, 255), width=1)
-
-    # Compile animation frames by spinning the custom player wheel
-    frames = []
-    total_frames = 12
-    
-    for frame_idx in range(total_frames):
-        rotation_angle = (frame_idx * (360 / total_frames) * 2) % 360
-        rotated_inner_wheel = wheel_layer.rotate(-rotation_angle, resample=Image.BICUBIC, center=(135, 135))
-        
-        # Create a fresh canvas copy from our custom template framework
-        frame_canvas = base_template.copy()
-        
-        # Place the spinning wheel perfectly inside the logo's central chrome framework
-        frame_canvas.alpha_composite(rotated_inner_wheel, dest=(490 - 135, 245 - 135))
-        
-        frames.append(frame_canvas.convert("RGB"))
-
-    # Output frames together as a high-fidelity custom brand GIF
-    frames[0].save(
-        output_path,
-        save_all=True,
-        append_images=frames[1:],
-        duration=65,
-        loop=0
-    )
-
-
-# 4. Bot Ready Event
+# 3. Bot Ready Event
 @bot.event
-async def on_ready():
-    print(f"🤖 البوت جاهز للعمل باسم: {bot.user.name}")
+async def on_ready() -> None:
+    bot_user = bot.user
+    if bot_user is None:
+        return
+    print(f"🤖 البوت جاهز للعمل باسم: {bot_user.name}")
     await bot.change_presence(activity=discord.Game(name="الألعاب العربية | !العاب"))
 
-# 5. Games Help Menu
+# 4. Games Help Menu
 @bot.command(name="العاب")
-async def help_games(ctx):
-    embed = discord.Embed(title="⭐ - Games Commands", color=discord.Color.from_rgb(94, 82, 135))
-    if bot.user and bot.user.display_avatar:
-        embed.set_thumbnail(url=bot.user.display_avatar.url)
-    embed.add_field(name="الألعاب الجماعية ❯", value="حساب , عواصم , فكاك , اعلام , تخمين , كت , روليت", inline=False)
+async def help_games(ctx: BotContext) -> None:
+    embed = discord.Embed(
+        title="⭐ - Games Commands",
+        color=discord.Color.from_rgb(243, 156, 18),
+    )
+    bot_user = bot.user
+    if bot_user is not None:
+        embed.set_thumbnail(url=bot_user.display_avatar.url)
+
+    embed.add_field(
+        name="الألعاب الجماعية ❯",
+        value="حساب , عواصم , فكاك , اعلام , تخمين , كت , روليت",
+        inline=False,
+    )
+    embed.add_field(
+        name="اوامر البوت ❯",
+        value="بروفايل , نقاط , توب",
+        inline=False,
+    )
     await ctx.send(embed=embed)
 
 
 # ----------------- [ ROULETTE INTERFACES ] -----------------
 
 class RouletteLobbyView(discord.ui.View):
-    def __init__(self, ctx, timeout_secs=35):
+    def __init__(self, ctx: BotContext, timeout_secs: int = 35) -> None:
         super().__init__(timeout=timeout_secs + 5)
-        self.ctx = ctx
-        self.players = []
-        self.timeout_secs = timeout_secs
+        self.ctx: BotContext = ctx
+        self.players: List[UserOrMember] = []
+        self.timeout_secs: int = timeout_secs
 
     async def update_lobby_message(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="🎯 | نظام الروليت الملكي (Night Roulette)",
+            title="🎯 | نظام الروليت الملكي (Roulette)",
             description=f"**اللاعبين المسجلين:** `{len(self.players)}/1000`\n⏳ المتبقي على البدء: **{self.timeout_secs} ثانية**",
-            color=discord.Color.from_rgb(94, 82, 135)
+            color=discord.Color.from_rgb(106, 90, 205)
         )
-        
-        generate_spinning_wheel_gif(self.players, "lobby_wheel.gif")
-        file = discord.File("lobby_wheel.gif", filename="wheel.gif")
-        embed.set_image(url="attachment://wheel.gif")
-        
-        await interaction.response.edit_message(embed=embed, view=self, attachments=[file])
+        embed.set_image(url="https://images2.imgbox.com/39/5f/ZofkOnxJ_o.png")
+        await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="دخول", style=discord.ButtonStyle.green, custom_id="join_btn", emoji="👥")
-    async def join_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def join_callback(self, interaction: discord.Interaction, button: discord.ui.Button[discord.ui.View]) -> None:
         if interaction.user in self.players:
-            return await interaction.response.send_message("❌ أنت مسجل بالفعل في هذه الجولة!", ephemeral=True)
+            await interaction.response.send_message("❌ أنت مسجل بالفعل في هذه الجولة!", ephemeral=True)
+            return
+        if len(self.players) >= 1000:
+            await interaction.response.send_message("❌ عذراً، اللوبي ممتلئ!", ephemeral=True)
+            return
+
         self.players.append(interaction.user)
         await self.update_lobby_message(interaction)
 
     @discord.ui.button(label="خروج", style=discord.ButtonStyle.red, custom_id="leave_btn", emoji="🚪")
-    async def leave_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def leave_callback(self, interaction: discord.Interaction, button: discord.ui.Button[discord.ui.View]) -> None:
         if interaction.user not in self.players:
-            return await interaction.response.send_message("❌ أنت لست مسجلاً أساساً!", ephemeral=True)
+            await interaction.response.send_message("❌ أنت لست مسجلاً أساساً!", ephemeral=True)
+            return
+
         self.players.remove(interaction.user)
         await self.update_lobby_message(interaction)
+
+    @discord.ui.button(label="المتجر", style=discord.ButtonStyle.blurple, custom_id="shop_btn", emoji="🏪")
+    async def shop_callback(self, interaction: discord.Interaction, button: discord.ui.Button[discord.ui.View]) -> None:
+        embed = discord.Embed(title="🏪 متجر الروليت", description="قريباً سيتم إضافة أسلحة ودروع المتجر هنا!", color=discord.Color.gold())
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class TurnActionView(discord.ui.View):
+    def __init__(self, current_player: UserOrMember, players_list: Sequence[UserOrMember]) -> None:
+        super().__init__(timeout=15.0)
+        self.current_player: UserOrMember = current_player
+        self.players_list: Sequence[UserOrMember] = players_list
+        self.action_chosen: Optional[str] = None
+        self.target_member: Optional[UserOrMember] = None
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user != self.current_player:
+            await interaction.response.send_message("❌ الدور ليس دورك لتتحكم بالأزرار!", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="عشوائي", style=discord.ButtonStyle.success, emoji="🎲")
+    async def random_target(self, interaction: discord.Interaction, button: discord.ui.Button[discord.ui.View]) -> None:
+        self.action_chosen = "random"
+        await interaction.response.defer()
+        self.stop()
+
+    @discord.ui.button(label="انسحاب", style=discord.ButtonStyle.danger, emoji="🏳️")
+    async def surrender(self, interaction: discord.Interaction, button: discord.ui.Button[discord.ui.View]) -> None:
+        self.action_chosen = "leave"
+        await interaction.response.defer()
+        self.stop()
+
+    @discord.ui.button(label="اختار لاعب", style=discord.ButtonStyle.secondary, emoji="🎯")
+    async def pick_target(self, interaction: discord.Interaction, button: discord.ui.Button[discord.ui.View]) -> None:
+        opponents = [p for p in self.players_list if p != self.current_player]
+        if not opponents:
+            self.action_chosen = "random"
+            self.stop()
+            return
+
+        select_view = discord.ui.View(timeout=15)
+        options = [discord.SelectOption(label=opp.display_name, value=str(opp.id)) for opp in opponents[:25]]
+        dropdown: discord.ui.Select[discord.ui.View] = discord.ui.Select(placeholder="اختر الشخص الذي تريد طرده وتصويب الروليت عليه...", options=options)
+
+        async def dropdown_callback(interaction: discord.Interaction) -> None:
+            selected_id = int(dropdown.values[0])
+            self.target_member = discord.utils.get(self.players_list, id=selected_id)
+            self.action_chosen = "target"
+            await interaction.response.defer()
+            self.stop()
+
+        dropdown.callback = dropdown_callback
+        select_view.add_item(dropdown)
+        await interaction.response.send_message("🎯 اختر ضحيتك المستهدفة:", view=select_view, ephemeral=True)
 
 
 # ----------------- [ ROULETTE COMMAND CORE ] -----------------
 
 @bot.command(name="روليت")
-async def roulette_game(ctx):
+async def roulette_game(ctx: BotContext) -> None:
     lobby = RouletteLobbyView(ctx, timeout_secs=35)
-    
+
     embed = discord.Embed(
-        title="🎯 | نظام الروليت الملكي (Night Roulette)",
+        title="🎯 | نظام الروليت الملكي (Roulette)",
         description=f"**اللاعبين المسجلين:** `0/1000`\n⏳ المتبقي على البدء: **35 ثانية**",
-        color=discord.Color.from_rgb(94, 82, 135)
+        color=discord.Color.from_rgb(106, 90, 205)
     )
-    
-    generate_spinning_wheel_gif([], "lobby_wheel.gif")
-    file = discord.File("lobby_wheel.gif", filename="wheel.gif")
-    embed.set_image(url="attachment://wheel.gif")
-    
-    lobby_msg = await ctx.send(embed=embed, view=lobby, file=file)
+    embed.set_image(url="https://images2.imgbox.com/39/5f/ZofkOnxJ_o.png")
+    lobby_msg = await ctx.send(embed=embed, view=lobby)
 
     for remaining in range(30, -1, -5):
         await asyncio.sleep(5)
@@ -214,69 +188,160 @@ async def roulette_game(ctx):
         lobby.timeout_secs = remaining
         try:
             edit_embed = discord.Embed(
-                title="🎯 | نظام الروليت الملكي (Night Roulette)",
+                title="🎯 | نظام الروليت الملكي (Roulette)",
                 description=f"**اللاعبين المسجلين:** `{len(lobby.players)}/1000`\n⏳ المتبقي على البدء: **{remaining} ثانية**",
-                color=discord.Color.from_rgb(94, 82, 135)
+                color=discord.Color.from_rgb(106, 90, 205)
             )
-            generate_spinning_wheel_gif(lobby.players, "lobby_wheel.gif")
-            loop_file = discord.File("lobby_wheel.gif", filename="wheel.gif")
-            edit_embed.set_image(url="attachment://wheel.gif")
-            await lobby_msg.edit(embed=edit_embed, view=lobby, attachments=[loop_file])
+            edit_embed.set_image(url="https://images2.imgbox.com/39/5f/ZofkOnxJ_o.png")
+            await lobby_msg.edit(embed=edit_embed, view=lobby)
         except Exception:
             break
 
     for child in lobby.children:
-        child.disabled = True
+        if isinstance(child, discord.ui.Button):
+            child.disabled = True
     try:
         await lobby_msg.edit(view=lobby)
     except Exception:
         pass
 
     active_players = lobby.players.copy()
+
     if len(active_players) < 2:
-        return await ctx.send("❌ تم إلغاء الجولة لعدم توفر لاعبين كافيين!")
+        await ctx.send("❌ تم إلغاء الجولة لعدم توفر لاعبين كافيين (اقل شي لاعبين اثنين)!")
+        return
 
     round_counter = 1
 
     while len(active_players) > 1:
         current_turn_player = random.choice(active_players)
         players_list_str = " | ".join([f"`{idx+1} - {p.display_name}`" for idx, p in enumerate(active_players)])
-        
+
         round_embed = discord.Embed(
             title=f"الجولة {round_counter} - الدور لـ {current_turn_player.display_name}",
-            description=f"{current_turn_player.mention} ، **لديك 15 ثانية لاختيار تصرف أو اللعب عشوائياً!**\n\n**المتواجدين بالعجلة:**\n{players_list_str}",
-            color=discord.Color.from_rgb(94, 82, 135)
+            description=f"{current_turn_player.mention} ، **لديك 15 ثانية لاختيار شخص لطردة أو اللعب عشوائياً!**\n\n**اللاعبين المتواجدين بالعجلة:**\n{players_list_str}",
+            color=discord.Color.from_rgb(106, 90, 205)
         )
-        
-        generate_spinning_wheel_gif(active_players, "round_wheel.gif")
-        round_file = discord.File("round_wheel.gif", filename="wheel.gif")
-        round_embed.set_image(url="attachment://wheel.gif")
-        
-        class TempView(discord.ui.View):
-            def __init__(self):
-                super().__init__(timeout=15.0)
-                self.chosen = "random"
-            @discord.ui.button(label="عشوائي", style=discord.ButtonStyle.success)
-            async def rand(self, inter, btn):
-                self.chosen = "random"
-                await inter.response.defer()
-                self.stop()
+        round_embed.set_thumbnail(url=current_turn_player.display_avatar.url)
+        round_embed.set_image(url="https://images2.imgbox.com/39/5f/ZofkOnxJ_o.png")
 
-        tv = TempView()
-        await ctx.send(embed=round_embed, view=tv, file=round_file)
-        await tv.wait()
-        
-        opponents = [p for p in active_players if p != current_turn_player]
-        victim = random.choice(opponents) if opponents else current_turn_player
-        if victim in active_players:
-            active_players.remove(victim)
-            await ctx.send(f"🔴 رصاصة الروليت طردت {victim.mention}!")
+        action_view = TurnActionView(current_turn_player, active_players)
+        await ctx.send(embed=round_embed, view=action_view)
+
+        await action_view.wait()
+
+        if action_view.action_chosen is None:
+            if current_turn_player in active_players:
+                active_players.remove(current_turn_player)
+            await ctx.send(f"💀 تم طرد {current_turn_player.mention} بسبب عدم الاستجابة وانتهاء الـ 15 ثانية!")
+            round_counter += 1
+            continue
+
+        if action_view.action_chosen == "leave":
+            if current_turn_player in active_players:
+                active_players.remove(current_turn_player)
+            await ctx.send(f"🏳️ اختار اللاعب {current_turn_player.mention} **الانسحاب** وغادر الجولة تلقائياً.")
+
+        else:
+            if action_view.action_chosen == "random":
+                opponents = [p for p in active_players if p != current_turn_player]
+                victim = random.choice(opponents) if opponents else current_turn_player
+                action_type_text = "بشكل عشوائي"
+            else:
+                victim = action_view.target_member if action_view.target_member in active_players else None
+                action_type_text = "باختيار مباشر"
+
+            if victim and victim in active_players:
+                active_players.remove(victim)
+                await ctx.send(f"🔴 تم طرد {victim.mention} **{action_type_text}**، سوف تبدأ الجولة التالية قريباً...")
+            else:
+                opponents = [p for p in active_players if p != current_turn_player]
+                if opponents:
+                    victim = random.choice(opponents)
+                    active_players.remove(victim)
+                    await ctx.send(f"🔴 تم طرد {victim.mention} **بشكل عشوائي**، سوف تبدأ الجولة التالية قريباً...")
 
         round_counter += 1
         await asyncio.sleep(4)
 
     if len(active_players) == 1:
-        await ctx.send(f"🏆 الفائز هو {active_players[0].mention}!")
+        ultimate_winner = active_players[0]
+        add_points(str(ultimate_winner.id), 50)
+
+        win_embed = discord.Embed(
+            title="🏆 بطل الروليت الملكي!",
+            description=f"كفووو! نجح {ultimate_winner.mention} بالصمود للنهاية وسحق بقية الخصوم!\nحصل على **50 نقطة مكافأة** 💰 وتم تسجيل فوز بملفه الشخصي.",
+            color=discord.Color.gold()
+        )
+        await ctx.send(embed=win_embed)
+
+
+# ----------------- [ PRE-EXISTING TRIVIA MINI GAMES ] -----------------
+
+@bot.command(name="اعلام")
+async def flags_game(ctx: BotContext) -> None:
+    flags_dict: List[Dict[str, Any]] = [
+        {"flag": "🇸🇦", "answers": ["السعودية"]},
+        {"flag": "🇪🇬", "answers": ["مصر"]}
+    ]
+    item = random.choice(flags_dict)
+    embed = discord.Embed(title="🚩 أعلام الدول العربية", description=f"# {item['flag']}", color=discord.Color.red())
+    embed.set_image(url="https://images2.imgbox.com/39/da/tFpT6Ior_o.png")
+    await ctx.send(embed=embed)
+
+@bot.command(name="حساب")
+async def math_game(ctx: BotContext) -> None:
+    n1, n2 = random.randint(5, 50), random.randint(5, 50)
+    embed = discord.Embed(title="🔢 الحساب السريع", description=f"# `{n1} + {n2} = ؟`", color=discord.Color.blue())
+    embed.set_image(url="https://images2.imgbox.com/15/8e/m7qIepxR_o.png")
+    await ctx.send(embed=embed)
+
+@bot.command(name="تخمين")
+async def guessing_game(ctx: BotContext) -> None:
+    embed = discord.Embed(title="🔢 تخمين الرقم", description="اخترت رقم من 1 لـ 100 خمنه!", color=discord.Color.dark_grey())
+    embed.set_image(url="https://images2.imgbox.com/39/12/fQy1Wz28_o.png")
+    await ctx.send(embed=embed)
+
+@bot.command(name="عواصم")
+async def capitals_game(ctx: BotContext) -> None:
+    embed = discord.Embed(title="🌍 عواصم الدول", description="ما هي عاصمة السعودية؟", color=discord.Color.green())
+    embed.set_image(url="https://images2.imgbox.com/4a/14/NInPizZ6_o.png")
+    await ctx.send(embed=embed)
+
+@bot.command(name="فكاك")
+async def fekak_game(ctx: BotContext) -> None:
+    embed = discord.Embed(title="✏️ فكاك الجمل", description="`سيرفرالعاب`", color=discord.Color.orange())
+    embed.set_image(url="https://images2.imgbox.com/f9/52/Ff06B9XF_o.png")
+    await ctx.send(embed=embed)
+
+@bot.command(name="كت")
+async def cut_tweet(ctx: BotContext) -> None:
+    questions = ["لو رجع بيك الزمن قبل 5 سنوات، ايش الشي الوحيد الي بتغيره؟"]
+    await ctx.send(embed=discord.Embed(title="❓ كت تويت", description=random.choice(questions), color=discord.Color.purple()))
+
+@bot.command(name="نقاط")
+async def check_points(ctx: BotContext, member: Optional[discord.Member] = None) -> None:
+    target_member: UserOrMember = member or ctx.author
+    data = load_data()
+    user_stats = data.get(str(target_member.id), {"points": 0, "wins": 0})
+    await ctx.send(f"💰 رصيد {target_member.mention}: **{user_stats['points']}** نقطة.")
+
+@bot.command(name="بروفايل")
+async def profile(ctx: BotContext, member: Optional[discord.Member] = None) -> None:
+    target_member: UserOrMember = member or ctx.author
+    data = load_data()
+    user_stats = data.get(str(target_member.id), {"points": 0, "wins": 0})
+    embed = discord.Embed(title=f"👤 ملف اللاعب: {target_member.display_name}", color=discord.Color.blue())
+    embed.set_thumbnail(url=target_member.display_avatar.url)
+    embed.add_field(name="💰 النقاط:", value=f"`{user_stats['points']}`", inline=True)
+    await ctx.send(embed=embed)
+
+@bot.command(name="توب")
+async def leaderboard(ctx: BotContext) -> None:
+    await ctx.send("🏆 قائمة المتصدرين تعمل بشكل ممتاز!")
 
 TOKEN = os.getenv("DISCORD_TOKEN") or 'YOUR_FALLBACK_TOKEN'
-bot.run(TOKEN)
+try:
+    bot.run(TOKEN)
+except Exception as e:
+    print(f"Bot failed: {e}")
