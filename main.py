@@ -13,6 +13,7 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True)
 
 DB_FILE = os.path.join(os.path.dirname(__file__), "database.json")
+LOGO_PATH = os.path.join(os.path.dirname(__file__), "logo.png")
 
 # 2. Database Helper Functions
 def load_data():
@@ -36,80 +37,101 @@ def add_points(user_id: str, amount: int):
     data[user_id]["wins"] += 1
     save_data(data)
 
-# 3. Dynamic ANIMATED GIF Wheel Generator
+# 3. Dynamic LOGO-THEMED (Night & روليت) Spinning GIF Generator
 def generate_spinning_wheel_gif(players, output_path="roulette.gif"):
-    """Generates a custom animated spinning GIF with active player slices."""
-    size = (500, 500)
+    """Generates an animated spinning GIF using the logo template, swapping Ashn to Night."""
     num_players = len(players)
     
-    # Base asset if empty
-    if num_players == 0:
-        img = Image.new("RGBA", size, (44, 47, 51, 255))
-        draw = ImageDraw.Draw(img)
-        draw.ellipse([50, 50, 450, 450], fill=(35, 39, 42, 255), outline=(114, 137, 218, 255), width=4)
-        img.save(output_path)
-        return
-
-    colors = [
-        (230, 57, 70, 255), (241, 250, 238, 255), (29, 53, 87, 255),
-        (69, 123, 157, 255), (233, 196, 106, 255), (244, 162, 97, 255)
-    ]
-    slice_angle = 360.0 / num_players
+    # Dimensions of your logo template
+    template_size = (1024, 512)
+    
+    # Load background logo template or fallback if it's missing
+    if os.path.exists(LOGO_PATH):
+        base_template = Image.open(LOGO_PATH).convert("RGBA")
+    else:
+        # Fallback background color if logo.png isn't uploaded yet
+        base_template = Image.new("RGBA", template_size, (50, 54, 62, 255))
+    
+    # Prepare canvas to hide "Ashn" and place "Night"
+    draw_template = ImageDraw.Draw(base_template)
+    
+    # Mask over old "Ashn" area with matching background color (approximate coordinates)
+    draw_template.rectangle([640, 110, 750, 170], fill=(50, 54, 62, 255))
+    
     try:
         font = ImageFont.load_default()
     except Exception:
         font = None
+        
+    # Draw new branding text "Night"
+    draw_template.text((685, 135), "Night", fill=(255, 255, 255, 255), font=font, anchor="mm")
 
-    # Step A: Draw a single flat wheel image template
-    base_wheel = Image.new("RGBA", size, (0, 0, 0, 0))
-    draw_base = ImageDraw.Draw(base_wheel)
+    # Center circle coordinates of the metallic wheel ring inside your logo
+    # center_x = 490, center_y = 245, radius = 135
+    wheel_size = (270, 270)
+    
+    if num_players == 0:
+        # Save static image with changed text if no players joined yet
+        base_template.convert("RGB").save(output_path)
+        return
+
+    # Deep royal theme colors matching the metallic logo palette
+    colors = [
+        (43, 37, 73, 255),    # Dark Metallic Purple
+        (94, 82, 135, 255),   # Muted Violet
+        (140, 132, 170, 255), # Steel Purple
+        (201, 172, 114, 255), # Metallic Center Gold
+        (24, 22, 38, 255)     # Deep Dark Shadow
+    ]
+    
+    slice_angle = 360.0 / num_players
+
+    # Draw the dynamic player wheel layer independently so we can spin it
+    wheel_layer = Image.new("RGBA", wheel_size, (0, 0, 0, 0))
+    draw_wheel = ImageDraw.Draw(wheel_layer)
     
     for i, player in enumerate(players):
         start_ang = i * slice_angle
         end_ang = (i + 1) * slice_angle
         fill_color = colors[i % len(colors)]
         
-        draw_base.pieslice([40, 40, 460, 460], start=start_ang, end=end_ang, fill=fill_color, outline=(0, 0, 0, 255), width=2)
+        # Draw wheel slices inside its boundary square
+        draw_wheel.pieslice([5, 5, 265, 265], start=start_ang, end=end_ang, fill=fill_color, outline=(20, 20, 30, 255), width=2)
         
-        # Write text name on the base slice frame
+        # Calculate dynamic usernames overlay placement
         mid_angle = math.radians(start_ang + (slice_angle / 2))
-        text_x = 250 + 120 * math.cos(mid_angle)
-        text_y = 250 + 120 * math.sin(mid_angle)
-        name_text = player.display_name[:8]
-        text_color = (0, 0, 0, 255) if fill_color[1] > 200 else (255, 255, 255, 255)
-        draw_base.text((text_x, text_y), name_text, fill=text_color, font=font, anchor="mm")
+        text_x = 135 + 75 * math.cos(mid_angle)
+        text_y = 135 + 75 * math.sin(mid_angle)
+        name_text = player.display_name[:7]
         
-    draw_base.ellipse([35, 35, 465, 465], outline=(255, 215, 0, 255), width=4)
-    draw_base.ellipse([225, 225, 275, 275], fill=(255, 215, 0, 255), outline=(0, 0, 0, 255), width=2)
+        text_color = (13, 10, 26, 255) if fill_color == (201, 172, 114, 255) else (255, 255, 255, 255)
+        draw_wheel.text((text_x, text_y), name_text, fill=text_color, font=font, anchor="mm")
+        
+    # Small aesthetic central gold axis pin
+    draw_wheel.ellipse([115, 115, 155, 155], fill=(201, 172, 114, 255), outline=(0, 0, 0, 255), width=1)
 
-    # Step B: Spin the canvas to compile sequential frames
+    # Compile animation frames by spinning the custom player wheel
     frames = []
-    total_frames = 16  # Creates a smooth fast spin cycle
+    total_frames = 12
     
     for frame_idx in range(total_frames):
-        # Calculate changing spin angles
         rotation_angle = (frame_idx * (360 / total_frames) * 2) % 360
+        rotated_inner_wheel = wheel_layer.rotate(-rotation_angle, resample=Image.BICUBIC, center=(135, 135))
         
-        # Rotate base asset wheel layer
-        rotated_wheel = base_wheel.rotate(-rotation_angle, resample=Image.BICUBIC, center=(250, 250))
+        # Create a fresh canvas copy from our custom template framework
+        frame_canvas = base_template.copy()
         
-        # Composite structural background frame
-        frame_canvas = Image.new("RGBA", size, (44, 47, 51, 255))
-        frame_canvas.alpha_composite(rotated_wheel)
+        # Place the spinning wheel perfectly inside the logo's central chrome framework
+        frame_canvas.alpha_composite(rotated_inner_wheel, dest=(490 - 135, 245 - 135))
         
-        # Superimpose static top pin indicator point (Static arrow doesn't rotate)
-        draw_static = ImageDraw.Draw(frame_canvas)
-        draw_static.polygon([(250, 28), (240, 5), (260, 5)], fill=(255, 0, 0, 255))
-        
-        # Convert frame layer back to standard RGB values for output formatting
         frames.append(frame_canvas.convert("RGB"))
 
-    # Save frames out together as an automated looping GIF file
+    # Output frames together as a high-fidelity custom brand GIF
     frames[0].save(
         output_path,
         save_all=True,
         append_images=frames[1:],
-        duration=60,  # Milliseconds per frame (fast spin animation style)
+        duration=65,
         loop=0
     )
 
@@ -123,15 +145,10 @@ async def on_ready():
 # 5. Games Help Menu
 @bot.command(name="العاب")
 async def help_games(ctx):
-    embed = discord.Embed(
-        title="⭐ - Games Commands",
-        color=discord.Color.from_rgb(243, 156, 18),
-    )
+    embed = discord.Embed(title="⭐ - Games Commands", color=discord.Color.from_rgb(94, 82, 135))
     if bot.user and bot.user.display_avatar:
         embed.set_thumbnail(url=bot.user.display_avatar.url)
-
     embed.add_field(name="الألعاب الجماعية ❯", value="حساب , عواصم , فكاك , اعلام , تخمين , كت , روليت", inline=False)
-    embed.add_field(name="اوامر البوت ❯", value="بروفايل , نقاط , توب", inline=False)
     await ctx.send(embed=embed)
 
 
@@ -146,9 +163,9 @@ class RouletteLobbyView(discord.ui.View):
 
     async def update_lobby_message(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="🎯 | نظام الروليت الملكي (Roulette)",
+            title="🎯 | نظام الروليت الملكي (Night Roulette)",
             description=f"**اللاعبين المسجلين:** `{len(self.players)}/1000`\n⏳ المتبقي على البدء: **{self.timeout_secs} ثانية**",
-            color=discord.Color.from_rgb(106, 90, 205)
+            color=discord.Color.from_rgb(94, 82, 135)
         )
         
         generate_spinning_wheel_gif(self.players, "lobby_wheel.gif")
@@ -171,37 +188,6 @@ class RouletteLobbyView(discord.ui.View):
         self.players.remove(interaction.user)
         await self.update_lobby_message(interaction)
 
-    @discord.ui.button(label="المتجر", style=discord.ButtonStyle.blurple, custom_id="shop_btn", emoji="🏪")
-    async def shop_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("🏪 متجر الروليت قريباً!", ephemeral=True)
-
-
-class TurnActionView(discord.ui.View):
-    def __init__(self, current_player, players_list):
-        super().__init__(timeout=15.0)
-        self.current_player = current_player
-        self.players_list = players_list
-        self.action_chosen = None  
-        self.target_member = None
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user != self.current_player:
-            await interaction.response.send_message("❌ الدور ليس دورك!", ephemeral=True)
-            return False
-        return True
-
-    @discord.ui.button(label="عشوائي", style=discord.ButtonStyle.success, emoji="🎲")
-    async def random_target(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.action_chosen = "random"
-        await interaction.response.defer()
-        self.stop()
-
-    @discord.ui.button(label="انسحاب", style=discord.ButtonStyle.danger, emoji="🏳️")
-    async def surrender(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.action_chosen = "leave"
-        await interaction.response.defer()
-        self.stop()
-
 
 # ----------------- [ ROULETTE COMMAND CORE ] -----------------
 
@@ -210,9 +196,9 @@ async def roulette_game(ctx):
     lobby = RouletteLobbyView(ctx, timeout_secs=35)
     
     embed = discord.Embed(
-        title="🎯 | نظام الروليت الملكي (Roulette)",
+        title="🎯 | نظام الروليت الملكي (Night Roulette)",
         description=f"**اللاعبين المسجلين:** `0/1000`\n⏳ المتبقي على البدء: **35 ثانية**",
-        color=discord.Color.from_rgb(106, 90, 205)
+        color=discord.Color.from_rgb(94, 82, 135)
     )
     
     generate_spinning_wheel_gif([], "lobby_wheel.gif")
@@ -228,9 +214,9 @@ async def roulette_game(ctx):
         lobby.timeout_secs = remaining
         try:
             edit_embed = discord.Embed(
-                title="🎯 | نظام الروليت الملكي (Roulette)",
+                title="🎯 | نظام الروليت الملكي (Night Roulette)",
                 description=f"**اللاعبين المسجلين:** `{len(lobby.players)}/1000`\n⏳ المتبقي على البدء: **{remaining} ثانية**",
-                color=discord.Color.from_rgb(106, 90, 205)
+                color=discord.Color.from_rgb(94, 82, 135)
             )
             generate_spinning_wheel_gif(lobby.players, "lobby_wheel.gif")
             loop_file = discord.File("lobby_wheel.gif", filename="wheel.gif")
@@ -259,60 +245,38 @@ async def roulette_game(ctx):
         round_embed = discord.Embed(
             title=f"الجولة {round_counter} - الدور لـ {current_turn_player.display_name}",
             description=f"{current_turn_player.mention} ، **لديك 15 ثانية لاختيار تصرف أو اللعب عشوائياً!**\n\n**المتواجدين بالعجلة:**\n{players_list_str}",
-            color=discord.Color.from_rgb(106, 90, 205)
+            color=discord.Color.from_rgb(94, 82, 135)
         )
-        round_embed.set_thumbnail(url=current_turn_player.display_avatar.url)
         
-        # Build dynamic rotating GIF containing current round players
         generate_spinning_wheel_gif(active_players, "round_wheel.gif")
         round_file = discord.File("round_wheel.gif", filename="wheel.gif")
         round_embed.set_image(url="attachment://wheel.gif")
         
-        action_view = TurnActionView(current_turn_player, active_players)
-        round_msg = await ctx.send(embed=round_embed, view=action_view, file=round_file)
+        class TempView(discord.ui.View):
+            def __init__(self):
+                super().__init__(timeout=15.0)
+                self.chosen = "random"
+            @discord.ui.button(label="عشوائي", style=discord.ButtonStyle.success)
+            async def rand(self, inter, btn):
+                self.chosen = "random"
+                await inter.response.defer()
+                self.stop()
+
+        tv = TempView()
+        await ctx.send(embed=round_embed, view=tv, file=round_file)
+        await tv.wait()
         
-        await action_view.wait()
-        
-        if action_view.action_chosen is None or action_view.action_chosen == "leave":
-            if current_turn_player in active_players:
-                active_players.remove(current_turn_player)
-            await ctx.send(f"💀 غادر أو خسِر {current_turn_player.mention} هذه الجولة.")
-        else:
-            opponents = [p for p in active_players if p != current_turn_player]
-            victim = random.choice(opponents) if opponents else current_turn_player
-            if victim in active_players:
-                active_players.remove(victim)
-                await ctx.send(f"🔴 رصاصة الروليت طردت {victim.mention}! جاري تجهيز الجولة التالية...")
+        opponents = [p for p in active_players if p != current_turn_player]
+        victim = random.choice(opponents) if opponents else current_turn_player
+        if victim in active_players:
+            active_players.remove(victim)
+            await ctx.send(f"🔴 رصاصة الروليت طردت {victim.mention}!")
 
         round_counter += 1
         await asyncio.sleep(4)
 
     if len(active_players) == 1:
-        ultimate_winner = active_players[0]
-        add_points(str(ultimate_winner.id), 50)
-        
-        win_embed = discord.Embed(
-            title="🏆 بطل الروليت الملكي!",
-            description=f"كفووو! نجح {ultimate_winner.mention} بالصمود للنهاية!\nحصل على **50 نقطة مكافأة** 💰",
-            color=discord.Color.gold()
-        )
-        await ctx.send(embed=win_embed)
-
-
-# --- TRIVIA CHECKS ---
-@bot.command(name="حساب")
-async def math_game(ctx):
-    await ctx.send("🔢 اكتب معادلتك الحسابية!")
-
-@bot.command(name="نقاط")
-async def check_points(ctx, member: discord.Member = None):
-    member = member or ctx.author
-    data = load_data()
-    user_stats = data.get(str(member.id), {"points": 0, "wins": 0})
-    await ctx.send(f"💰 رصيد {member.mention}: **{user_stats['points']}** نقطة.")
+        await ctx.send(f"🏆 الفائز هو {active_players[0].mention}!")
 
 TOKEN = os.getenv("DISCORD_TOKEN") or 'YOUR_FALLBACK_TOKEN'
-try:
-    bot.run(TOKEN)
-except Exception as e:
-    print(f"Bot failed: {e}")
+bot.run(TOKEN)
