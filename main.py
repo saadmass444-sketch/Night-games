@@ -44,31 +44,25 @@ async def on_ready():
     await bot.change_presence(activity=discord.Game(name="الألعاب العربية | !help_games"))
 
 
-# 4. Games Help Menu
-@bot.command(name="help_games")
+# 4. Games Help Menu (Command updated to !العاب)
+@bot.command(name="العاب")
 async def help_games(ctx):
     embed = discord.Embed(
-        title="⭐ - أوامر الألعاب (Games Commands)",
+        title="⭐ - Games Commands",
         color=discord.Color.from_rgb(243, 156, 18),
     )
+
     embed.add_field(
-        name="🎮 الألعاب الفردية الجماعية",
-        value="`!حساب` - أسرع واحد يحل المسألة الرياضية\n"
-              "`!عواصم` - اكتب عاصمة الدولة المطلوبة\n"
-              "`!فكاك` - تفكيك الكلمة الملتصقة\n"
-              "`!اعلام` - أسرع واحد يحزر اسم الدولة من علمها 🚩\n"
-              "`!تخمين` - خمن الرقم من 1 إلى 100 (معكم 10 محاولات) 🔢\n"
-              "`!كت` - سؤال كت تويت عشوائي للدردشة",
+        name="الألعاب الجماعية ❯",
+        value="حساب , عواصم , فكاك , اعلام , تخمين , كت",
         inline=False,
     )
     embed.add_field(
-        name="📊 أوامر البيانات",
-        value="`!نقاط` - لمعرفة رصيد نقاطك\n"
-              "`!بروفايل` - لعرض ملفك الشخصي\n"
-              "`!توب` - عرض قائمة المتصدرين في السيرفر",
+        name="اوامر البوت ❯",
+        value="بروفايل , نقاط , توب",
         inline=False,
     )
-    embed.set_footer(text="قم بكتابة الأمر لبدء اللعب المتعة!")
+
     await ctx.send(embed=embed)
 
 
