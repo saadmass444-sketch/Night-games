@@ -44,7 +44,7 @@ async def on_ready():
     await bot.change_presence(activity=discord.Game(name="الألعاب العربية | !العاب"))
 
 
-# 4. Games Help Menu (With Added Night Logo Thumbnail)
+# 4. Games Help Menu (With Your Logo Fixed!)
 @bot.command(name="العاب")
 async def help_games(ctx):
     embed = discord.Embed(
@@ -52,13 +52,9 @@ async def help_games(ctx):
         color=discord.Color.from_rgb(243, 156, 18),
     )
 
-    logo_filename = "night_logo.png"
-    if os.path.exists(logo_filename):
-        embed.set_thumbnail(url=f"attachment://{logo_filename}")
-        await ctx.send(file=discord.File(logo_filename), embed=embed)
-        return
-
-    embed.set_thumbnail(url="https://cdn.discordapp.com/embed/avatars/0.png")
+    # We use a direct URL of your moon logo so it renders correctly as a thumbnail
+    logo_url = "https://i.ibb.co/v4vYfWks/Night-logo-for-bots.jpg"
+    embed.set_thumbnail(url=logo_url)
 
     embed.add_field(
         name="الألعاب الجماعية ❯",
@@ -137,7 +133,7 @@ async def flags_game(ctx):
         {"flag": "🇦🇪", "answers": ["الامارات", "الإمارات", "الامارات العربية المتحدة"]},
         {"flag": "🇶🇦", "answers": ["قطر"]},
         {"flag": "🇰🇼", "answers": ["الكويت"]},
-        {"flag": "🇧🇭", "answers": ["البحرين"]},
+        {"flag": "🇧 Bahrain", "answers": ["البحرين"]},
         {"flag": "🇴🇲", "answers": ["عمان", "عُمان"]},
         {"flag": "🇮🇶", "answers": ["العراق"]},
         {"flag": "🇯🇴", "answers": ["الاردن", "الأردن"]},
