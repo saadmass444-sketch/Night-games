@@ -52,7 +52,7 @@ async def help_games(ctx):
         color=discord.Color.from_rgb(243, 156, 18),
     )
 
-    embed.set_thumbnail(url="https://images.prodia.technology/uploads/8e93ba9b-e8da-4fcb-beee-ee3600f68285.png")
+    embed.set_thumbnail(url="https://www.python.org/static/community_logos/python-logo-master-v3-TM.png")
 
     embed.add_field(
         name="الألعاب الجماعية ❯",
