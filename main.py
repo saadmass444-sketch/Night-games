@@ -8,7 +8,7 @@ import os
 # 1. Initialize Bot & Intents
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents, case_insensitive=True)
 
 DB_FILE = os.path.join(os.path.dirname(__file__), "database.json")
 
@@ -41,11 +41,11 @@ def add_points(user_id: str, amount: int):
 @bot.event
 async def on_ready():
     print(f"🤖 البوت جاهز للعمل باسم: {bot.user.name}")
-    await bot.change_presence(activity=discord.Game(name="الألعاب العربية | !help_games"))
+    await bot.change_presence(activity=discord.Game(name="الألعاب العربية | !العاب"))
 
 
 # 4. Games Help Menu (Command updated to !العاب)
-@bot.command(name="العاب")
+@bot.command(name="العاب", aliases=["help_games", "help"])
 async def help_games(ctx):
     embed = discord.Embed(
         title="⭐ - Games Commands",
